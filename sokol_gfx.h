@@ -4347,6 +4347,7 @@ typedef struct sg_environment_defaults {
 
 typedef struct sg_metal_environment {
     const void* device;
+    const void* queue;
 } sg_metal_environment;
 
 typedef struct sg_d3d11_environment {
@@ -13114,7 +13115,9 @@ _SOKOL_PRIVATE void _sg_mtl_setup_backend(const sg_desc* desc) {
     _sg.mtl.ub_size = desc->uniform_buffer_size;
     _sg.mtl.sem = dispatch_semaphore_create(SG_NUM_INFLIGHT_FRAMES);
     _sg.mtl.device = (__bridge id<MTLDevice>) desc->environment.metal.device;
-    _sg.mtl.cmd_queue = [_sg.mtl.device newCommandQueue];
+    // _sg.mtl.cmd_queue = [_sg.mtl.device newCommandQueue];
+    _sg.mtl.cmd_queue = (__bridge id<MTLCommandQueue>) desc->environment.metal.queue;
+    
 
     for (int i = 0; i < SG_NUM_INFLIGHT_FRAMES; i++) {
         _sg.mtl.uniform_buffers[i] = [_sg.mtl.device
