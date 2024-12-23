@@ -1,5 +1,60 @@
 ## Updates
 
+### 17-Dec-2024
+
+- sokol_imgui.h (breaking change): user-provided images and samplers are now
+  stashed directly in a Dear ImGui ImTextureID handle instead of in a separate backing
+  object (this is possible now because ImTextureID is now guaranteed to be 64 bits,
+  so it can directly hold two 32-bit sokol-gfx handles). This change drastically
+  simplifies the sokol_imgui.h implementatation, but requires some breaking API
+  changes (please read the updated doc section `ON USER-PROVIDED IMAGES AND SAMPLERS`
+  in sokol_imgui.h)
+- sokol_gfx.h: a couple of new functions to get granular buffer and image properties
+  called `sg_query_buffer_[property]()` and `sg_query_image_[property]()`. Those are
+  cheaper than the similar `sg_query_buffer_desc()` and `sg_query_image_desc()`
+  functions if you only need to get one or few properties.
+- sokol_gfx_imgui.h: internal non-breaking fixes for the sokol_imgui.h API update.
+
+Associated PR: https://github.com/floooh/sokol/pull/1169
+
+### 14-Dec-2024
+
+- sokol_app.h win32: merged PR https://github.com/floooh/sokol/pull/1167, this
+  adds a new config define `SOKOL_WIN32_FORCE_WINMAIN`. This allows to expose
+  both a `main()` and `WinMain()` entry point in the same link library by
+  defining both `SOKOL_WIN32_FORCE_MAIN` and `SOKOL_WIN32_FORCE_WINMAIN` before
+  including the sokol_app.h implementation.
+  In this case sokol_app.h will not automatically activate the right Windows subsystem
+  via `#pragma comment (linker) "/subsystem:X")` though, instead the build system
+  must take care of picking the correct subsystem.
+
+  Many thanks to @Querijn for the PR!
+
+### 08-Dec-2924
+
+- sokol_imgui.h: when compiling the implementation in C mode, it is now possible
+  to define an alternative function prefix via the define SOKOL_IMGUI_CPREFIX
+  (with `ig` being the default prefix), this allows sokol_imgui.h to be
+  used with the default dear_bindings prefix (which is `ImGui_`), the
+  traditional cimgui.h prefix (`ig`) and it is also possible to not use
+  a prefix at all, which might be useful for language bindings.
+
+  See PR https://github.com/floooh/sokol/pull/1166 for details.
+
+### 07-Dec-2024
+
+- Changes in sokol_imgui.h and sokol_gfx_imgui.h for a switch of the Dear ImGui
+  C bindings from https://github.com/cimgui/cimgui to https://github.com/floooh/dcimgui
+  (this is a 'source distribution repository' with the Dear ImGui C binding generated through the
+  new 'official' dear_bindings code generation - see https://github.com/dearimgui/dear_bindings).
+
+  This is only a breaking change if you include the sokol_gfx_imgui.h implementation
+  into a C source file, in that case you need to switch from https://github.com/cimgui/cimgui
+  to https://github.com/floooh/dcimgui. All other scenarios should be backward
+  compatible.
+
+  For details see PR https://github.com/floooh/sokol/pull/1163
+
 ### 23-Nov-2024
 
 - sokol_app.h html5: Merged PR https://github.com/floooh/sokol/pull/1159 (related
