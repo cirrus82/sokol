@@ -420,9 +420,13 @@ def gen_func_c(decl, prefix):
     l(f"extern fn {decl['name']}({funcdecl_args_c(decl, prefix)}) {funcdecl_result_c(decl, prefix)};")
     l('')
 
-def gen_func_zig(decl, prefix):
+def gen_func_zig(decl, prefix, tiger_style=False):
     c_func_name = decl['name']
-    zig_func_name = util.as_lower_camel_case(check_override(decl['name']), prefix)
+    if not tiger_style:
+        zig_func_name = util.as_lower_camel_case(check_override(decl['name']), prefix)
+    else:
+        zig_func_name = util.as_lower_snake_case(check_override(decl['name']), prefix)
+
     c(decl.get('comment'))
     if c_func_name in c_callbacks:
         # a simple forwarded C callback function
@@ -485,39 +489,20 @@ def gen_helpers(inp):
         l('// helper function to convert "anything" to a Range struct')
         l('pub fn asRange(val: anytype) Range {')
         l('    const type_info = @typeInfo(@TypeOf(val));')
-        l('    // FIXME: naming convention change between 0.13 and 0.14-dev')
-        l('    if (@hasField(@TypeOf(type_info), "Pointer")) {')
-        l('        switch (type_info) {')
-        l('            .Pointer => {')
-        l('                switch (type_info.Pointer.size) {')
-        l('                    .One => return .{ .ptr = val, .size = @sizeOf(type_info.Pointer.child) },')
-        l('                    .Slice => return .{ .ptr = val.ptr, .size = @sizeOf(type_info.Pointer.child) * val.len },')
-        l('                    else => @compileError("FIXME: Pointer type!"),')
-        l('                }')
-        l('            },')
-        l('            .Struct, .Array => {')
-        l('                @compileError("Structs and arrays must be passed as pointers to asRange");')
-        l('            },')
-        l('            else => {')
-        l('                @compileError("Cannot convert to range!");')
-        l('            },')
-        l('        }')
-        l('    } else {')
-        l('        switch (type_info) {')
-        l('            .pointer => {')
-        l('                switch (type_info.pointer.size) {')
-        l('                    .one => return .{ .ptr = val, .size = @sizeOf(type_info.pointer.child) },')
-        l('                    .slice => return .{ .ptr = val.ptr, .size = @sizeOf(type_info.pointer.child) * val.len },')
-        l('                    else => @compileError("FIXME: Pointer type!"),')
-        l('                }')
-        l('            },')
-        l('            .@"struct", .array => {')
-        l('                @compileError("Structs and arrays must be passed as pointers to asRange");')
-        l('            },')
-        l('            else => {')
-        l('                @compileError("Cannot convert to range!");')
-        l('            },')
-        l('        }')
+        l('    switch (type_info) {')
+        l('        .pointer => {')
+        l('            switch (type_info.pointer.size) {')
+        l('                .one => return .{ .ptr = val, .size = @sizeOf(type_info.pointer.child) },')
+        l('                .slice => return .{ .ptr = val.ptr, .size = @sizeOf(type_info.pointer.child) * val.len },')
+        l('                else => @compileError("FIXME: Pointer type!"),')
+        l('            }')
+        l('        },')
+        l('        .@"struct", .array => {')
+        l('            @compileError("Structs and arrays must be passed as pointers to asRange");')
+        l('        },')
+        l('        else => {')
+        l('            @compileError("Cannot convert to range!");')
+        l('        },')
         l('    }')
         l('}')
         l('')
@@ -552,7 +537,7 @@ def gen_helpers(inp):
         l('}')
         l('')
 
-def gen_module(inp, dep_prefixes):
+def gen_module(inp, dep_prefixes, opt={}):
     l('// machine generated, do not edit')
     if inp.get('comment'):
         l('')
@@ -574,7 +559,8 @@ def gen_module(inp, dep_prefixes):
                     gen_enum(decl, prefix)
                 elif kind == 'func':
                     gen_func_c(decl, prefix)
-                    gen_func_zig(decl, prefix)
+                    tiger_style = opt.get('tiger-style', False)
+                    gen_func_zig(decl, prefix, tiger_style=tiger_style)
 
 def prepare():
     print('=== Generating Zig bindings:')
@@ -583,7 +569,7 @@ def prepare():
     if not os.path.isdir('sokol-zig/src/sokol/c'):
         os.makedirs('sokol-zig/src/sokol/c')
 
-def gen(c_header_path, c_prefix, dep_c_prefixes):
+def gen(c_header_path, c_prefix, dep_c_prefixes, opt={}):
     if not c_prefix in module_names:
         print(f' >> warning: skipping generation for {c_prefix} prefix...')
         return
@@ -593,7 +579,7 @@ def gen(c_header_path, c_prefix, dep_c_prefixes):
     reset_globals()
     shutil.copyfile(c_header_path, f'sokol-zig/src/sokol/c/{os.path.basename(c_header_path)}')
     ir = gen_ir.gen(c_header_path, c_source_path, module_name, c_prefix, dep_c_prefixes, with_comments=True)
-    gen_module(ir, dep_c_prefixes,)
+    gen_module(ir, dep_c_prefixes, opt)
     output_path = f"sokol-zig/src/sokol/{ir['module']}.zig"
     with open(output_path, 'w', newline='\n') as f_outp:
         f_outp.write(out_lines)
