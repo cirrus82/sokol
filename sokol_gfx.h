@@ -14290,7 +14290,8 @@ _SOKOL_PRIVATE void _sg_mtl_end_pass(void) {
     }
     // if this is a swapchain pass, present the drawable
     if (nil != _sg.mtl.cur_drawable) {
-        [_sg.mtl.cmd_buffer presentDrawable:_sg.mtl.cur_drawable];
+        // luigi: intentionally leaving this for the external renderer to call so Rive can draw on the frame.
+        // [_sg.mtl.cmd_buffer presentDrawable:_sg.mtl.cur_drawable];
         _sg.mtl.cur_drawable = nil;
     }
 }
