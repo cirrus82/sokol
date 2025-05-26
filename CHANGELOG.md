@@ -1,5 +1,126 @@
 ## Updates
 
+### 26-May-2025
+
+Two changes in sokol_app.h's X11 backend:
+
+- sokol_app.h will now generally let the window manager pick the window
+  position, with a hint to center the window (via `XSizeHints.win_gravity`).
+  This will hopefully fix various known window positioning problems in multi-monitor
+  configurations.
+- The window size is now multiplied by the `dpi_scale` factor (which is computed
+  as the queried display dpi divided by 96.0). This fixes the problem of tiny
+  windows on high-dpi monitors. Please be aware though that GLX does not allow to
+  define a framebuffer resolution that's different from the window client area
+  size, so the swapchain framebuffer size will also be affected by the dpi-scale
+  factor (I'm starting to consider getting rid of the `sapp_desc.high_dpi` flag
+  and the associated special behaviour since it was designed for a time when
+  high-dpi monitors were still kind of an exception - it might be better to
+  replace this with a `sapp_desc.swapchain_scale` hint which would be ignored on
+  backends which don't allow to define an explicit swapchain framebuffer size).
+
+PR: https://github.com/floooh/sokol/pull/1271
+
+### 25-May-2025
+
+The texture creation code in the sokol-gfx GL backend has been cleaned up
+to generally use glTexStorage + glTexSubImage (except on macOS where the
+the glTexImage functions are still used). The new code cleanly separates
+the two ways to create GL textures, while the old code was a bit of a messy
+mix of both. This is purely a code cleanup update, no behaviour changes
+should be observable.
+
+Ticket: https://github.com/floooh/sokol/issues/1263
+PR: https://github.com/floooh/sokol/pull/1270
+
+### 24-May-2025
+
+The sokol-gfx 'compute milestone 2' update, this fills some feature-gaps
+of the previous compute shader update:
+
+- Compute shaders can now write image data (as read/write or write-only access),
+  with the image objects provided as 'compute pass attachments'.
+- Buffers are now 'multi-purpose', e.g. the same buffer can be bound
+  as vertex-, index- or storage-buffer (this allows things like stashing
+  vertex- and index-data into the same buffer, or populating a buffer
+  with a compute shader and then binding it as vertex- and/or index-buffer)
+  Note though that WebGL2 explicitly disallows using the same buffer
+  for index- and vertex-data.
+
+This is a slightly breaking update (you'll need to touch the `sg_make_buffer()`
+and some `sg_make_image()` calls.
+
+Also update to the latest [sokol-shdc](https://github.com/floooh/sokol-tools)
+version which allows storage image access in compute shaders and exports
+additional reflection information in `sg_shader_desc`.
+
+New samples (only available for WebGPU):
+
+- [combined vertex/index buffers](https://floooh.github.io/sokol-webgpu/vertexindexbuffer-sapp.html)
+- [simple compute shader image access](https://floooh.github.io/sokol-webgpu/write-storageimage-sapp.html)
+- [image blur sample ported from WebGPU](https://floooh.github.io/sokol-webgpu/imageblur-sapp.html)
+
+See this blog post for many more details and porting instructions:
+
+https://floooh.github.io/2025/05/19/sokol-gfx-compute-ms2.html
+
+The related PR: https://github.com/floooh/sokol/pull/1245
+
+The `compute-ms2` update will be followed by a `resource view` update
+which will make resource binding slightly more flexible (e.g. allow to
+bind storage buffers with offsets), and also change storage image bindings
+from compute pass attachments to regular bindings via `sg_apply_bindings()`.
+
+Related changes:
+
+- sokol_app.h: the D3D11/DXGI backend now creates a feature level D3D11.1 device
+  (with fallback to feature level D3D11.0).
+
+Known issues:
+
+- The new imageblur-sapp sample currently doesn't work on Android with GLES3.1
+  (it works on Linux with a GLES3.1 context though). Since debugging on Android
+  is such a royal PITA (even when it works, which currently it doesn't on my
+  Pixel4a) I haven't investigated yet.
+
+### 22-May-2025
+
+sokol_imgui.h: another minor cimgui vs Dear Bindings compatibility fix which
+transparently handles `igGetIO()` (Dear Bindings with `ig` prefix) vs
+`igGetIO_Nil()` (cimgui). Not sure how much longer it makes sense to support
+both C binding flavours. In general it is recommended to use sokol_imgui.h with
+the C bindings which are generated via https://github.com/floooh/dcimgui (or of
+course just use the Dear ImGui C++ API - sokol_imgui.h supports both).
+
+### 21-May-2025
+
+sokol_app.h macos: Merged PR https://github.com/floooh/sokol/pull/1265 which fixes
+the problem that starting an app in fullscreen mode via `sapp_desc.fullscreen`
+didn't work when the app isn't compiled as a macOS app bundle (see the PR
+for details).
+
+Many thanks to @danielchasehooper for identifying the root cause of the issue
+and providing the PR!
+
+### 07-May-2025
+
+A memory alignment fix for raw mouse input on Windows via `GetRawInputData()`.
+Raw mouse input is used for 'mouse-lock mode', not for regular mouse input.
+`GetRawInputData()` requires the output buffer to be 8-byte aligned, but
+sokol_app.h didn't guarantee this (and in reality it doesn't really seem to
+matter, the problem only showed up when running under ASAN - props to Zig). The
+new solution works the same as GLFW: first a dummy `GetRawInputData()` is
+performed to query the required buffer size, then a buffer is allocated on
+demand (which typically only happens once), then the actual `GetRawInputData()`
+call is performed. This depends on `malloc()` returning memory that's at least
+8-byte aligned (malloc on 64-bit Windows guarantees 16-byte alignment).
+
+Many thanks to @roig for noticing the issue and providing an initial fix
+via PR https://github.com/floooh/sokol/pull/1262 (which I merged but then replaced
+with the above heap-allocation solution - this is safe for any data size returned
+by `GetRawInputData()` - I'm not actually sure though if anything greater than
+`sizeof(RAWINPUTDATA)` is ever returned.
+
 ### 05-Apr-2025
 
 - Compute shaders are now supported on platforms that support GLES3.1
