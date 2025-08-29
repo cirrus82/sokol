@@ -129,7 +129,9 @@ jobs:
       - uses: actions/checkout@main
         with:
           repository: floooh/sokol-zig
-      - uses: goto-bus-stop/setup-zig@v2
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: master
       - uses: actions/download-artifact@main
         with:
           name: ignore-me-zig
@@ -292,10 +294,8 @@ jobs:
       - uses: actions/checkout@main
         with:
           repository: kassane/sokol-d
-      - uses: goto-bus-stop/setup-zig@v2
-        with:
-          version: 0.14.0
-      - uses: dlang-community/setup-dlang@v1
+      - uses: egor-tensin/vs-shell@v2 # get cl.exe (default for Windows)
+      - uses: dlang-community/setup-dlang@v2
         with:
           compiler: ldc-master
       - uses: actions/download-artifact@main
@@ -308,7 +308,30 @@ jobs:
             sudo apt-get update
             sudo apt-get install libgl1-mesa-dev libegl1-mesa-dev mesa-common-dev xorg-dev libasound-dev
       - name: build
-        run: zig build --summary all
+        working-directory: examples
+        run: |
+          dub build :blend
+          dub build :bufferoffsets
+          dub build :clear
+          dub build :cube
+          dub build :debugtext
+          dub build :droptest
+          dub build :imgui
+          dub build :instancing
+          dub build :instancingcompute
+          dub build :mrt
+          dub build :noninterleaved
+          dub build :nuklear
+          dub build :offscreen
+          dub build :quad
+          dub build :shapes
+          dub build :saudio
+          dub build :sglcontext
+          dub build :sglpoints
+          dub build :triangle
+          dub build :texcube
+          dub build :userdata
+          dub build :vertexpull
   test-jai:
     needs: gen-bindings
     strategy:
@@ -351,7 +374,7 @@ jobs:
           repository: floooh/sokol-c3
       - uses: radekm/setup-c3@v2
         with:
-          version: v0.6.6
+          version: v0.7.2
       - uses: actions/download-artifact@main
         with:
           name: ignore-me-c3

@@ -1,5 +1,219 @@
 ## Updates
 
+### 29-Aug-2025
+
+- sokol_imgui.h: Fixed a high-dpi font blurriness regression in sokol_imgui.h which
+  was introduced with the new texture handling in Dear ImGui 1.92.0. The
+  fix causes the Dear ImGui font atlas to be rendered at the native display
+  resolution so that no upscaling happens for text (which was the reason for
+  the blurriness).
+
+  Issue: https://github.com/floooh/sokol/issues/1297
+  Fix: https://github.com/floooh/sokol/pull/1320
+
+### 28-Aug-2025
+
+- sokol_app.h linux: fixed an issue that prevented to lock the mouse early in the
+  sokol-app `init()` callback.
+  PR: https://github.com/floooh/sokol/pull/1319 and issue: https://github.com/floooh/sokol/issues/1318.
+  Many thanks to @Joan-rv for identifying the issue and implementing the fix!
+
+### 23-Aug-2025
+
+The sokol_gfx.h '**resource view update**'. This is a breaking update which
+changes the resource-binding- and pass-attachments-model from directly
+binding image- and  buffer-objects to binding resource view objects instead.
+
+In a nutshell:
+
+- a new object type `sg_view` with associated functions has been added: view
+  objects 'specialize' an image or buffer resource for the different ways a shader
+  accesses image or buffer data (texture sampling vs storage-load/store vs
+  rendering into color- or depth-stencil-buffers)
+- in turn, the object type `sg_attachments` and associated functions has ben removed
+- `sg_bindings` now takes a single array of `sg_view` objects to define
+  texture-, storage-buffer- and storage-image bindings for the next drawcall
+- storage-image-bindings are no longer pass-attachments but 'regular' bindings
+  (like texture- and storage-buffer-bindings)
+- pre-baked pass attachment combinations are no longer a thing, instead
+  `sg_pass.attachments` is now a transient nested struct like `sg_bindings`
+  which defines the pass attachments as arrays of `sg_view` objects
+- storage-buffer-bindings can now have an offset (with the restriction that
+  offsets can't be dynamic, but are baked into a view object, and the offset
+  must have a 256-byte alignment)
+
+When using `sokol-shdc`, note that you need to update sokol-shdc and recompile
+your shaders. You may get new 'bindslot collision errors' which you need to
+resolve by updating the `layout(binding=N)` attributes for textures, storage-buffers
+and storage-images.
+
+For many more details and code examples see the [accompanying blog post](https://floooh.github.io/2025/08/17/sokol-gfx-view-update.html).
+
+Also check out the updated inline-documentation sections that deal with offscreen-
+rendering and resource-binding in the sokol_gfx.h header, and finally
+check out the updated examples (each example has a link to the C and GLSL source code):
+
+- WebGL2: https://floooh.github.io/sokol-html5/
+- WebGPU (required for storage buffer and compute samples): https://floooh.github.io/sokol-webgpu/
+
+The main PR (with links to all related tickets and PRs): https://github.com/floooh/sokol/pull/1287
+
+### 15-Aug-2025
+
+The sokol_gfx.h WebGPU backend has been fixed for the latest breaking changes in
+webgpu.h (`WGPUShaderModuleWGSLDescriptor` has been renamed to `WGPUShaderSourceWGSL`).
+
+### 03-Aug-2025
+
+sokol_app.h: character input on Windows now transparently supports surrogate pairs,
+for details see PR https://github.com/floooh/sokol/pull/1304. Many thanks to @cloudwu
+for the PR!
+
+### 29-Jun-2025
+
+The Dear ImGui backend in sokol_imgui.h has been updated for Dear ImGui 1.92.0.
+
+This may be a breaking change if:
+
+- you are attaching your own fonts to Dear ImGui
+- you use the C bindings and render images in the UI
+- you were calling the sokol_imgui.h functions `simgui_create_fonts_texture()`
+  and `simgui_destroy_fonts_texture()` (those are no longer necessary and have
+  been removed)
+
+If you had been attaching your own fonts to Dear ImGui, remove any code which
+explicitly creates a sokol-gfx font texture image object. Specifically:
+
+- do not call the Dear ImGui `GetTexDataAsRGBA32()` method
+- do not call `sg_make_image()` with the receiced data
+- do not set `Fonts->TexID` on the Dear ImGui IO object
+
+If you are using Dear ImGui C bindings, you'll need to fix the places where
+the `igImage()` function is called. This now takes an `ImTextureRef` struct
+instead of an `ImTextureID` (in C++ this is not a problem since the ImTextureRef
+is automatically constructed on the fly from the ImTextureID, but in C you'll
+need to do this by hand, e.g. change):
+
+```c
+igImage(my_tex_id, ...);
+```
+...to:
+```c
+igImage((ImTextureRef){ ._TexID=my_tex_id}, ...);
+```
+Dear Bindings is currently missing a helper function for this conversion, also
+see: https://github.com/dearimgui/dear_bindings/issues/99
+
+...and a drive-by update in `sokol_gfx_imgui.h`: when used from C, the function
+prefix of the C bindings can now be configured via the macro `SOKOL_GFX_IMGUI_CPREFIX`.
+The default prefix is `ig` which makes it compatible with the bindings from
+https://github.com/floooh/dcimgui (which are the recommended C bindings for use
+with the sokol headers).
+
+Related PRs:
+
+- the actual changes: https://github.com/floooh/sokol/pull/1294
+- fixes in the v6502r project (custom fonts): https://github.com/floooh/v6502r/pull/33
+- various fixes in the sokol-samples: https://github.com/floooh/sokol-samples/pull/173
+
+### 28-Jun-2025
+
+sokol_gfx.h d3d11: `#include` statements are now supported when directly passing HLSL
+shader source code into `sg_make_shader()`. See PR https://github.com/floooh/sokol/pull/1293
+for details. Many thanks to @rdunnington for the PR!
+
+### 15-Jun-2025
+
+The sokol_app.h and sokol_gfx.h WebGPU backends have been updated for the new
+`emdawnwebgpu` Emscripten Port. The directly integrated WebGPU support in the
+Emscripten SDK has been outdated for quite a while now and the Emscripten SDK
+now prints a deprecation warning for the old WebGPU shim.
+
+**NOTE:** this change requires to change your Emscripten build process:
+
+- remove the linker option `-s USE_WEBGPU=1`
+- instead add `--use-port=emdawnwebgpu` both to compile and link steps
+
+You'll also need to be on the most recent Emscripten SDK (>= 4.0.10).
+
+The WebGPU specific code in sokol_app.h has been moved out of the Emscripten
+`#ifdef/#endif` blocks to prepare for using the WebGPU backend in native
+scenarios outside web browsers (which requires much more work in the various
+sokol_app.h platform backends though).
+
+I'm not entirely happy with how the new `emdawnwebgpu` JS shim turned out since it
+adds its own event loop for async operations, and quite a bit of bloat (10..20
+KBytes uncompressed) over the older and simpler WebGPU shim, but currently
+that's the price to pay for source code compatibility with the native WebGPU
+implementation in Google's Dawn library. The latest `webgpu/webgpu.h` API
+also made some questionable design choices which don't quite fit the C language
+(`WGPUStringView` and `WGPUFuture`), these may be useful when using the C API
+from other languages but are overkill both for usage from C and WASM.
+
+At a later point I might implement my own WebGPU JS shim as alternative to
+`emdawnwebgpu` which would do some things more efficiently and with less code,
+but at the cost of `<webgpu/webgpu.h>` compatibility, but currently that's not a
+high priority.
+
+PR: https://github.com/floooh/sokol/pull/1283
+
+Also note this bug report which currently prevents using the Emscripten Closure
+pass (this isn't a new thing though, the old WebGPU JS shim also didn't work
+with Closure):
+
+https://issues.chromium.org/issues/424836759
+
+### 08-Jun-2025
+
+A code cleanup in sokol_gfx.h for internal object references. No change in behaviour
+should be observable from the outside for valid code, however some
+validation layer checks have been tightened.
+
+Why: sokol_gfx.h needs to manage some inter-object relationships in the implementation,
+for instance:
+
+- pipeline objects store a reference to a shader object
+- attachment objects store references to image objects
+- the currently active pipeline object needs to be tracked inside begin/end pass
+- various internal caches to reduce pressure on the underlying 3D APIs
+
+So far such internal references were not standardized, instead either only
+the 32-bit handle was stored (requiring a lookup to convert the handle
+into a pointer), or a combination of a direct pointer and a handle (which
+allows a quick 'liveness check' in the validation layer, and a direct pointer
+access instead of looking up the pointer from a handle).
+
+This implementation allowed a 'loophole' though: if a resource object went
+through an uninit/init cycle (which keeps the handle intact but replaces
+the backend API objects), such internal references would not be invalidated.
+
+This loophole has now been closed:
+
+- all resource objects now track an internal 32-bit 'uninit count' which is bumped
+  on uninit (and cleared on destroy)
+- internal references now store both the public handle (which detects destroy/make
+  cycles) and the uninit-count (which detectes uninit/init cycles)
+- ...and all this stuff has now been centralized in private structs and a handful
+  helper functions
+
+Additionally:
+
+- code has been moved around to reduce forward references, unfortunately the
+  result is that the PR diff looks bigger and messier than the change actually is
+- validation layer behaviour concerning internal references has been cleaned
+  up and unified
+
+This update is also a preparation for the upcoming 'resource view update', since
+those new resource view objects require watertight tracking of their 'root object'.
+
+Planning ticket: https://github.com/floooh/sokol/issues/1260
+PR: https://github.com/floooh/sokol/pull/1275
+
+Please don't hesitate to write tickets if your existing code triggers new
+validation layer errors or otherwise behaves differently - I did test the changes
+extensively, but at the same time I might have missed some esoteric but valid
+usage scenarios.
+
 ### 26-May-2025
 
 Two changes in sokol_app.h's X11 backend:
